@@ -2,9 +2,12 @@
 var mainCanvas = document.getElementById("mainCanvas");
 var mainContext = mainCanvas.getContext("2d");
 
+var landCanvas = document.getElementById("landCanvas");
+var landContext = landCanvas.getContext("2d");
+
 mainContext.font = '20px 굴림';
 
-var v = {
+var v_men = {
 
 	init : function() {
 
@@ -160,7 +163,7 @@ var v = {
 	
 	init : function() {
 
-		var m2 = new men(150, 100, 24, 24, 24, 24, 
+		var m2 = new men(450, 100, 20, 20, 20, 20, 
 		 // {
 			// hair1 : getRandomColor()
 			// , hair2 : getRandomColor()
@@ -177,7 +180,7 @@ var v = {
 		m2.drawSideBody("l");
 		//m2.doAction("fire");
 		
-		var m3 = new men(200, 100, 24, 24, 24, 24, 
+		var m3 = new men(500, 100, 20, 20, 20, 20, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -194,7 +197,7 @@ var v = {
 		m3.drawSideBody("l");
 		m3.doAction("move");
 		
-		var m4 = new men(250, 100, 24, 24, 24, 24, 
+		var m4 = new men(550, 100, 20, 20, 20, 20, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -211,7 +214,7 @@ var v = {
 		m4.drawSideBody("l");
 		m4.doAction("move");
 		
-		var m5 = new men(300, 100, 24, 24, 24, 24, 
+		var m5 = new men(600, 100, 20, 20, 20, 20, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -232,7 +235,6 @@ var v = {
 	
 };
 
-//var cm = v.init();
 
 function getRandomColor() {
 	var r = _getRandomColor() + _getRandomColor();
@@ -991,3 +993,4 @@ function men(cx, cy, w, h, hw, hh, color) {
 	};
 	
 } 
+
