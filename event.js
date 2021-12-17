@@ -10,8 +10,10 @@ mainContext.font = '20px 굴림';
 var v_men = {
 
 	init : function() {
+		
+		var menSize = 24;
 
-		var m1 = new men(101, 101, 20, 20, 20, 20,
+		var m1 = new men(101, 101, menSize, menSize, menSize, menSize,
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -27,7 +29,7 @@ var v_men = {
 		m1.drawHead();
 		m1.drawBody();
 		
-		var m2 = new men(150, 100, 20, 20, 20, 20, 
+		var m2 = new men(150, 100, menSize, menSize, menSize, menSize, 
 		// {
 			// hair1 : getRandomColor()
 			// , hair2 : getRandomColor()
@@ -41,7 +43,7 @@ var v_men = {
 		m2.drawSideHead("l");
 		m2.drawSideBody("l");
 		
-		var m3 = new men(200, 100, 20, 20, 20, 20, {
+		var m3 = new men(menSize0, 100, menSize, menSize, menSize, menSize, {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
 			, eye : getRandomColor()
@@ -53,7 +55,7 @@ var v_men = {
 		m3.drawSideHead("r");
 		m3.drawSideBody("r");
 		
-		var m4 = new men(250, 100, 20, 20, 20, 20, {
+		var m4 = new men(250, 100, menSize, menSize, menSize, menSize, {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
 			, eye : getRandomColor()
@@ -162,8 +164,10 @@ var v_men = {
 	},
 	
 	init : function() {
+		
+		var menSize = 24;
 
-		var m2 = new men(450, 100, 20, 20, 20, 20, 
+		var m2 = new men(450, 100, menSize, menSize, menSize, menSize, 
 		 // {
 			// hair1 : getRandomColor()
 			// , hair2 : getRandomColor()
@@ -180,7 +184,7 @@ var v_men = {
 		m2.drawSideBody("l");
 		//m2.doAction("fire");
 		
-		var m3 = new men(500, 100, 20, 20, 20, 20, 
+		var m3 = new men(500, 100, menSize, menSize, menSize, menSize, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -197,7 +201,7 @@ var v_men = {
 		m3.drawSideBody("l");
 		m3.doAction("move");
 		
-		var m4 = new men(550, 100, 20, 20, 20, 20, 
+		var m4 = new men(550, 100, menSize, menSize, menSize, menSize, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -214,7 +218,7 @@ var v_men = {
 		m4.drawSideBody("l");
 		m4.doAction("move");
 		
-		var m5 = new men(600, 100, 20, 20, 20, 20, 
+		var m5 = new men(600, 100, menSize, menSize, menSize, menSize, 
 		 {
 			hair1 : getRandomColor()
 			, hair2 : getRandomColor()
@@ -244,17 +248,36 @@ function getRandomColor() {
 };
 
 function rgbDecimalToHex(r, g, b) {
-	return r.toString(16) + g.toString(16) + b.toString(16);
+	r = r.toString(16);
+	g = g.toString(16);
+	b = b.toString(16);
+	r = r.length == 1 ? "0" + r : r;
+	g = g.length == 1 ? "0" + g : g;
+	b = b.length == 1 ? "0" + b : b;
+	return "#" + r + g + b;
+};
+
+function getRange(range, r) {
+	var result = range;
+	if (255 - range < r) {
+		result = Math.abs(range) * - 1;
+	} else if (0 + range > r) {
+		result = Math.abs(range);
+	} else {
+		result = range * (Math.random() * 10 > 5.1 ? -1 : 1);
+	}
+	return result;
 };
 
 function rgbGetNearColor(r, g, b, range) {
-	range = range * (Math.random() * 10 > 5.1 ? -1 : 1);
-	r = parseInt(r + Math.random() * range) % 255
-	range = range * (Math.random() * 10 > 5.1 ? -1 : 1);
-	g = parseInt(g + Math.random() * range) % 255
-	range = range * (Math.random() * 10 > 5.1 ? -1 : 1);
-	b = parseInt(b + Math.random() * range) % 255
-	return getRandomColor(r, g, b);
+	r = parseInt(r + Math.random() * getRange(range, r)) % 255;
+	g = parseInt(g + Math.random() * getRange(range, g)) % 255;
+	b = parseInt(b + Math.random() * getRange(range, b)) % 255;
+	r = Math.max(0, r);
+	g = Math.max(0, g);
+	b = Math.max(0, b);
+	return rgbDecimalToHex(r, g, b);
+	//return "rgb (" + r + "," + g + "," + b + ")";
 };
 
 function getTransparentColor(r, g, b, a) {
@@ -263,7 +286,7 @@ function getTransparentColor(r, g, b, a) {
 
 
 function _getRandomColor() {
-	var n = (Math.random() * 16).toFixed(0);
+	var n = (Math.random() * 15).toFixed(0);
 	var nh = "";
 	switch (n) {
 		case "10": nh = "A"; break;
