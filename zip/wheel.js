@@ -4,7 +4,7 @@ var v_wheel = {
 		
 		console.time("wheel");
 		var l1 = new wheel();
-		var sx = 50;
+		var sx = 250;
 		var sy = 50;
 		l1.drawWheel(sx, sy, 100, 50, 30, -5);
 		console.timeEnd("wheel");
@@ -41,9 +41,9 @@ function wheel() {
 		var ellSize = Math.pow(a, 2) * Math.pow(b, 2);
 		
 		mainContext.beginPath();
-		mainContext.translate(cx, cy);
-		mainContext.rotate((Math.PI / 180) * angle); // 회전
-		mainContext.translate(-cx, -cy); // 예전 위치로 이동하기
+		//mainContext.translate(cx, cy);
+		//mainContext.rotate((Math.PI / 180) * angle); // 회전
+		//mainContext.translate(-cx, -cy); // 예전 위치로 이동하기
 		mainContext.fillStyle = "gray";
 		for (var x = -(colCnt / 2); x <= colCnt / 2; x++) {
 			for (var y = -(rowCnt / 2); y <= 0 / 2; y++) {

@@ -201,6 +201,7 @@ function plant() {
 	
 	this.drawTree_leafBoundary = function(ctx, sx, sy, w, color, density, _gap) {
 		
+		/*
 		var _us = 4;
 		density = density == undefined ? 60 : density;
 		var wCnt = w / 4;
@@ -222,6 +223,7 @@ function plant() {
 			}
 		}
 		ctx.fill();
+		*/
 		//ctx.closePath();
 	};
 	

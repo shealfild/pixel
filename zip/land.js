@@ -38,6 +38,8 @@ var v_land = {
 				
 		}
 		
+		//l1.drawFire(120,120, 120, 120);
+		
 		console.timeEnd("land");
 	},
 	
@@ -46,6 +48,39 @@ var v_land = {
 
 function land() {
 	
+	var _us = 4;
+	
+	this.fileColor = function() {
+		var r = 200 + Math.random() * 255;
+		var g = 0 + Math.random() * 255;
+		var b = g;
+		return "rgb(" + r + "," + g + "," + b + ")";
+	}
+	
+	this.drawFire = function(startX, startY, w, h) {
+		var _us = 4;
+		var sx = startX;
+		var sy = startY + w;
+		var ex = startX + h;
+		var ey = startY;
+		var cx = (sx + ex) / 2;
+		var cy = (sy + ey) / 2;
+		var colCnt = w / _us;
+		var rowCnt = h / _us;
+		
+		for (var c = 0; c < colCnt; c++) {
+			var l = sx + c *_us;
+			for (var r = rowCnt - 1; r >= 0; r--) {
+				var t = sy - r * _us;
+				var color = this.fileColor();
+				mainContext.beginPath(color);
+				mainContext.fillStyle = color;
+				var fh = Math.random() * 10 * _us;
+				mainContext.rect(l, t, _us, -fh / 2);
+				mainContext.fill();
+			}
+		}
+	},
 
 	
 	this.drawLand = function(startX, startY, w, h, landType) {
