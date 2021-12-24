@@ -20,6 +20,30 @@ function plant() {
 	var colorLeafMain = "green";
 	var colorLeafSub = "lightgreen";
 	
+	this.drawFlower = function (startX, startY, w, h) {
+		
+		var sx = startX;
+		var sy = startY;
+		
+		
+		var ws = w / uSize;
+		var hs = h / uSize;
+		
+		for (var r = 0; r < hs; r++) {
+			for (var c = 0; c < hs; c++) {
+				
+			}
+		}
+		
+		//leaf0
+		
+		//leaf1 
+		
+		//leaf2
+		
+		//leaf3
+	};
+	
 	
 	this.draw = function(startX, startY) {
 		
