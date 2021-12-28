@@ -10,13 +10,15 @@ window.addEventListener("resize", function(e) {
 
 var et = {
 	
-	CURRENT_MODE : undefined,
+	CURRENT_MODE : "MODE_NONE",
 	MODE_NONE : "MODE_NONE",
 	MODE_MAKE : "MODE_MAKE",
 	MODE_RESIZE : "MODE_RESIZE",
 	MODE_MOVE : "MODE_MOVE",
 	MODE_SELECTED : "MODE_SELECTED",
 	MODE_PARALL_MOVE_POINT : "MODE_PARALL_MOVE_POINT", //평행사변형 내부 점 이동
+	MODE_AREA_SELECTION : "MODE_AREA_SELECTION",
+	MODE_EMPTY_CLICK : "MODE_EMPTY_CLICK", //empty page click
 	
 	MAKE_COMPONENT_TYPE : "",
 	
@@ -26,6 +28,7 @@ var et = {
 	CP_PARALL4 : "CP_PARALL4",
 	CP_CUBE : "CP_CUBE",
 	CP_TRIANGLE : "CP_TRIANGLE",
+	CP_LINE : "CP_LINE",
 	
 	getComponentList : function() {
 		return { 
@@ -35,6 +38,7 @@ var et = {
 			"rect5" : et.CP_PARALL4,
 			"cube" : et.CP_CUBE,
 			"triangle" : et.CP_TRIANGLE,
+			"line" : et.CP_LINE,
 		};
 	},
 	
@@ -68,6 +72,7 @@ var et = {
 		cMap[et.CP_PARALL4] = cp_parall4;
 		cMap[et.CP_CUBE] = cp_cube;
 		cMap[et.CP_TRIANGLE] = cp_triangle;
+		cMap[et.CP_LINE] = cp_line;
 		
 		et.changeCanvasSize();
 	
@@ -194,6 +199,22 @@ var adorner = {
 	ptSize : 8,
 	ptStyle : undefined,
 	
+	areaSelector : undefined,
+	
+	initAreaSelector : function() {
+		if (adorner.areaSelector == undefined) {
+			var areaSelector = document.createElement("div");
+			areaSelector.style = "position:absolute;border:1px solid blue;background:rgba(0, 0, 255, 0.1);left:0px;top:0xp;width:0px;height:0px;";
+			et.adornerLayer.appendChild(areaSelector);
+			adorner.areaSelector = areaSelector;
+		} else {
+			adorner.areaSelector.style.width = "0px";
+			adorner.areaSelector.style.height = "0px";
+			adorner.areaSelector.style.left = "0px";
+			adorner.areaSelector.style.top = "0px";
+		}
+	},
+	
 	getSegStyle : function() {
 		if (adorner.segStyle == undefined) {
 			adorner.segStyle = "cursor:pointer;position:absolute;width:" + adorner.segSize + "px;height:" + adorner.segSize + "px;background:red;";
@@ -206,6 +227,19 @@ var adorner = {
 			adorner.ptStyle = "cursor:pointer;position:absolute;width:" + adorner.ptSize + "px;height:" + adorner.ptSize + "px;background:" + adorner.ptColor + ";";
 		}
 		return adorner.ptStyle;
+	},
+	
+	
+	makeEmptyAdorner: function (itemProperty) {
+		var defaultSegStyle = adorner.getSegStyle();
+		var fragment = document.createDocumentFragment();
+		var borderDiv = document.createElement("div");
+		borderDiv.style = "position:absolute;box-sizing:border-box;width:100px;height:100px;border:1px solid red";
+		borderDiv.setAttribute("name", "adorner");
+		borderDiv.setAttribute("target", itemProperty.basic.key);
+		fragment.appendChild(borderDiv);
+		adornerLayer.appendChild(fragment);
+		return borderDiv;
 	},
 	
 	makeDefaultAdorner : function(itemProperty) {
@@ -239,6 +273,7 @@ var adorner = {
 		return borderDiv;
 	},
 	
+	
 	makeParallAdorner : function(itemProperty) {
 		var itemAdorner = adorner.makeDefaultAdorner(itemProperty);
 		var pointStyle = adorner.getPointStyle();
@@ -247,7 +282,6 @@ var adorner = {
 		var w = itemProperty.basic.w;
 		var h = itemProperty.basic.h;
 		var p1Direction = itemProperty.point.d;
-		
 		var wPos = w * pPos / 100;
 		var hPos = h * pPos / 100;
 		
@@ -265,7 +299,6 @@ var adorner = {
 				p1Div.style = pointStyle + "left:" + wPos + "px;top:-" + adorner.ptSize * 1.5 + "px;margin-left:-" + adorner.ptSize / 2 + "px;";
 			break;
 		}
-		
 		p1Div.setAttribute("unit", "parall-1");
 		itemAdorner.appendChild(p1Div);
 		return itemAdorner;
@@ -336,6 +369,72 @@ var adorner = {
 		itemAdorner.appendChild(p4Div);
 		return itemAdorner;
 	},
+	
+	
+	makeLineAdorner : function(itemProperty) {
+		var itemAdorner = adorner.makeEmptyAdorner(itemProperty);
+		var pointStyle = adorner.getPointStyle();
+		var l1Div = document.createElement("div");
+		var l2Div = document.createElement("div");
+		
+		var w = itemProperty.basic.w;
+		var h = itemProperty.basic.h;
+		var point = itemProperty.point;
+		
+		var l1x = w * point.l1.x / 100;
+		var l1y = h * point.l1.y / 100;
+		var l2x = w * point.l2.x / 100;
+		var l2y = h * point.l2.y / 100;
+		
+		var mg = - adorner.ptSize / 2;
+		l1Div.style = pointStyle + adorner.__makePointStyle(l1x, l1y, mg, mg);
+		l2Div.style = pointStyle + adorner.__makePointStyle(l2x, l2y, mg, mg);
+		l1Div.setAttribute("unit", "line-l1");
+		l2Div.setAttribute("unit", "line-l2");
+		itemAdorner.appendChild(l1Div);
+		itemAdorner.appendChild(l2Div);
+		return itemAdorner;
+	},
+	
+	adjustTriangleSeg : function(itemAdorner, itemProperty) {
+		var w = itemProperty.basic.w;
+		var h = itemProperty.basic.h;
+		var point = itemProperty.point;
+		adorner.__adjustSeg(itemAdorner, "triangle-t1", point.t1, w, h);
+		adorner.__adjustSeg(itemAdorner, "triangle-t2", point.t2, w, h);
+		adorner.__adjustSeg(itemAdorner, "triangle-t3", point.t3, w, h);
+	},
+	
+	makeTriangleAdorner : function(itemProperty) {
+		var itemAdorner = adorner.makeDefaultAdorner(itemProperty);
+		var pointStyle = adorner.getPointStyle();
+		var t1Div = document.createElement("div");
+		var t2Div = document.createElement("div");
+		var t3Div = document.createElement("div");
+		
+		var w = itemProperty.basic.w;
+		var h = itemProperty.basic.h;
+		var point = itemProperty.point;
+		
+		var t1x = w * point.t1.x / 100;
+		var t1y = h * point.t1.y / 100;
+		var t2x = w * point.t2.x / 100;
+		var t2y = h * point.t2.y / 100;
+		var t3x = w * point.t3.x / 100;
+		var t3y = h * point.t3.y / 100;
+		
+		var mg = - adorner.ptSize / 2;
+		t1Div.style = pointStyle + adorner.__makePointStyle(t1x, t1y, mg, mg);
+		t2Div.style = pointStyle + adorner.__makePointStyle(t2x, t2y, mg, mg);
+		t3Div.style = pointStyle + adorner.__makePointStyle(t3x, t3y, mg, mg);
+		t1Div.setAttribute("unit", "triangle-t1");
+		t2Div.setAttribute("unit", "triangle-t2");
+		t3Div.setAttribute("unit", "triangle-t3");
+		itemAdorner.appendChild(t1Div);
+		itemAdorner.appendChild(t2Div);
+		itemAdorner.appendChild(t3Div);
+		return itemAdorner;
+	},
 
 	makeCubeAdorner : function(itemProperty) {
 
@@ -382,11 +481,9 @@ var adorner = {
 
 		l1Div.setAttribute("unit", "parall-l1");
 		l2Div.setAttribute("unit", "parall-l2");
-
 		m1Div.setAttribute("unit", "parall-m1");
 		m2Div.setAttribute("unit", "parall-m2");
 		m3Div.setAttribute("unit", "parall-m3");
-
 		r1Div.setAttribute("unit", "parall-r1");
 		r2Div.setAttribute("unit", "parall-r2");
 	
@@ -399,6 +496,25 @@ var adorner = {
 		itemAdorner.appendChild(r2Div);
 		return itemAdorner;
 		
+	},
+	
+	adjustCubeSeg : function(itemAdorner, itemProperty) {
+		var w = itemProperty.basic.w;
+		var h = itemProperty.basic.h;
+		var point = itemProperty.point;
+		adorner.__adjustSeg(itemAdorner, "parall-l1", point.l1, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-l2", point.l2, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-m1", point.m1, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-m2", point.m2, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-m3", point.m3, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-r1", point.r1, w, h);
+		adorner.__adjustSeg(itemAdorner, "parall-r2", point.r2, w, h);
+	},
+	
+	__adjustSeg : function(itemAdorner, segName, point, w, h) {
+		var segDiv = itemAdorner.querySelector("[unit=" + segName + "]");
+		segDiv.style.left = (w * point.x / 100) + "px";
+		segDiv.style.top = (h * point.y / 100) + "px";
 	},
 	
 	__makePointStyle : function(x, y, marginLeft, marginTop) {
@@ -438,6 +554,8 @@ var adorner = {
 	
 	currentUnit : undefined,
 	currentUnitInfo : undefined,
+	prevMouseX : -1,
+	prevMouseY : -1,
 	mouseDownX : -1,
 	mouseDownY : -1,
 	
@@ -448,8 +566,9 @@ var adorner = {
 		************************************************************************************/
 		et.adornerLayer.addEventListener("mousedown", function(e) {
 			
-			adorner.mouseDownX = e.pageX;
-			adorner.mouseDownY = e.pageY;
+			adorner.mouseDownX = adorner.prevMouseX = e.pageX;
+			adorner.mouseDownY = adorner.prevMouseY = e.pageY;
+			
 			var unitInfo = adorner.getUnitInfo(e.target);
 			if (unitInfo != undefined) {
 				switch (unitInfo[0]) {
@@ -459,6 +578,13 @@ var adorner = {
 					case "parall":
 						et.CURRENT_MODE = et.MODE_PARALL_MOVE_POINT;
 						break;
+					case "triangle":
+						et.CURRENT_MODE = et.MODE_PARALL_MOVE_POINT;
+						break;
+					case "line":
+						et.CURRENT_MODE = et.MODE_PARALL_MOVE_POINT;
+						break;
+						
 				}
 			}
 			
@@ -467,7 +593,6 @@ var adorner = {
 					var shiftKey = e.shiftKey;
 					var itemKey = hitChecker.check(e);
 					var prevSel = adorner.checkAlreadySelected(itemKey);
-					
 					if (prevSel) {
 						if (shiftKey) {
 							adorner.removeAdorner(itemKey);
@@ -481,12 +606,13 @@ var adorner = {
 						et.CURRENT_MODE = et.MODE_SELECTED;
 					} else {
 						adorner.removeAdornerAll();
-						et.CURRENT_MODE = et.MODE_NONE;
+						et.CURRENT_MODE = et.MODE_EMPTY_CLICK;
 					}
 					break;
 				case et.MODE_RESIZE:
 					adorner.currentUnit = e.target;
 					adorner.currentUnitInfo = unitInfo;
+					adorner.resizeAdornerAsMove(e, true);
 					break;
 				case et.MODE_PARALL_MOVE_POINT:
 					adorner.currentUnit = e.target;
@@ -500,18 +626,14 @@ var adorner = {
 		* mouse move
 		************************************************************************************/
 		et.adornerLayer.addEventListener("mousemove", function(e) {
-			
+			console.log(et.CURRENT_MODE);
 			switch (et.CURRENT_MODE) {
 				case et.MODE_PARALL_MOVE_POINT:
 					adorner.moveAdornerParallPoint(e);
 					break;
 				case et.MODE_SELECTED:
-					// if (Math.abs(e.pageX - adorner.mouseDownX) >= 3
-						// || Math.abs(e.pageY - adorner.mouseDownY) >= 3) 
-					// {
-						et.CURRENT_MODE = et.MODE_MOVE;
-						adorner.moveAdornerAsMove(e, true);
-					// }
+					et.CURRENT_MODE = et.MODE_MOVE;
+					adorner.moveAdornerAsMove(e, true);
 					break;
 				case et.MODE_RESIZE:
 					adorner.resizeAdornerAsMove(e);
@@ -519,10 +641,17 @@ var adorner = {
 				case et.MODE_MOVE:
 					adorner.moveAdornerAsMove(e);
 					break;
+				case et.MODE_EMPTY_CLICK:
+					et.CURRENT_MODE = et.MODE_AREA_SELECTION;
+					adorner.showAreaSelection(e);
+					break;
+				case et.MODE_AREA_SELECTION:
+					adorner.adjustAreaSelection(e);
+					break;
 			}
 			
-			adorner.mouseDownX = e.pageX;
-			adorner.mouseDownY = e.pageY;
+			adorner.prevMouseX = e.pageX;
+			adorner.prevMouseY = e.pageY;
 		}, true);
 		
 		
@@ -542,13 +671,20 @@ var adorner = {
 					break;
 				case et.MODE_RESIZE:
 					adorner.resizeItemToAdorner(e);
+					break;
+				case et.MODE_AREA_SELECTION:
+					var hittedList = hitChecker.checkArea(e);
+					adorner.removeAdornerAll();
+					adorner.showAdorner(e, hittedList);
+					adorner.hideAreaSelection(e);
+					break;
 			}
 			
 			et.CURRENT_MODE = et.MODE_NONE;
 			adorner.currentUnit = undefined;
 			adorner.currentUnitInfo = undefined;
-			adorner.mouseDownX = -1;
-			adorner.mouseDownY = -1;
+			adorner.mouseDownX = adorner.prevMouseX = -1;
+			adorner.mouseDownY = adorner.prevMouseY = -1;
 			
 			var adornerArr = document.getElementsByName("adorner");
 			if (adornerArr.length > 0) {
@@ -557,6 +693,38 @@ var adorner = {
 		}, true);
 	},
 	
+	showAreaSelection : function(e) {
+		adorner.initAreaSelector();
+		adorner.areaSelector.style.left = e.pageX + "px";
+		adorner.areaSelector.style.top = e.pageY + "px";
+		adorner.areaSelector.style.display = "block";
+	},
+	
+	hideAreaSelection : function(e) {
+		adorner.areaSelector.style.display = "none";
+	},
+	
+	adjustAreaSelection : function(e) {
+		var nextLeft = parseInt(adorner.areaSelector.style.left);
+		var nextTop = parseInt(adorner.areaSelector.style.top);
+		var nextWidth = e.pageX - adorner.mouseDownX;
+		var nextHeight = e.pageY - adorner.mouseDownY;
+		
+		if (nextWidth < 0) {
+			nextLeft = e.pageX;
+			nextWidth = Math.abs(nextWidth);
+		}
+		
+		if (nextHeight < 0) {
+			nextTop = e.pageY;
+			nextHeight = Math.abs(nextHeight);
+		}
+		
+		adorner.areaSelector.style.left = nextLeft + "px";
+		adorner.areaSelector.style.top = nextTop + "px";
+		adorner.areaSelector.style.width = (nextWidth) + "px";
+		adorner.areaSelector.style.height = (nextHeight) + "px";
+	},
 	
 	checkAlreadySelected : function(itemKey) {
 		var itemElement = et.adornerLayer.querySelector("[target=" + itemKey + "]");
@@ -569,8 +737,8 @@ var adorner = {
 			adorner.adornerUnitVisible(adornerArr, false);
 		}
 		
-		var moveX = e.pageX - adorner.mouseDownX;
-		var moveY = e.pageY - adorner.mouseDownY;
+		var moveX = e.pageX - adorner.prevMouseX;
+		var moveY = e.pageY - adorner.prevMouseY;
 		for (var k = 0; k < adornerArr.length; k++) {
 			var itemAdorner = adornerArr[k];
 			var cWidth = parseInt(itemAdorner.style.width);
@@ -634,8 +802,8 @@ var adorner = {
 		if (isBegin) {
 			adorner.adornerUnitVisible(adornerArr, false);
 		}
-		var moveX = e.pageX - adorner.mouseDownX;
-		var moveY = e.pageY - adorner.mouseDownY;
+		var moveX = e.pageX - adorner.prevMouseX;
+		var moveY = e.pageY - adorner.prevMouseY;
 		for (var k = 0; k < adornerArr.length; k++) {
 			var itemAdorner = adornerArr[k];
 			var cLeft = parseInt(itemAdorner.style.left);
@@ -701,6 +869,12 @@ var adorner = {
 					unitParallP2.style.top = (itemProperty.basic.h * itemProperty.point.p2.y / 100) + "px";
 					unitParallP4.style.top = (itemProperty.basic.h * itemProperty.point.p4.y / 100) + "px";
 					break;
+				case et.CP_CUBE:
+					adorner.adjustCubeSeg(itemAdorner, itemProperty);	
+					break;
+				case et.CP_TRIANGLE:
+					adorner.adjustTriangleSeg(itemAdorner, itemProperty);
+					break;
 			}
 		}
 	},
@@ -710,32 +884,36 @@ var adorner = {
 		var unitInfo = adorner.currentUnitInfo;
 		var itemKey = unit.parentNode.getAttribute("target");
 		var itemProperty = dMap[itemKey];
-		if (unitInfo[1] == 1) {
+		var itemType = itemProperty.basic.t;
+		var parallType = unitInfo[0];
+		var parallSegName = unitInfo[1];
+		
+		if (parallSegName == 1) {
 			//cp_parall
 			switch (itemProperty.point.d) {
 				case "hl":
 				case "hr":
-					var moveSize = e.pageY - adorner.mouseDownY;
+					var moveSize = e.pageY - adorner.prevMouseY;
 					var cTop = parseInt(adorner.currentUnit.style.top);
 					adorner.currentUnit.style.top  = (cTop + moveSize) + "px";
 					break;
 				case "vb":
 				case "vt":
-					var moveSize = e.pageX - adorner.mouseDownX;
+					var moveSize = e.pageX - adorner.prevMouseX;
 					var cLeft = parseInt(adorner.currentUnit.style.left);
 					adorner.currentUnit.style.left  = (cLeft + moveSize) + "px";
 					break;
 			}
 		} else {
 			//cp_parall2
-			switch (unitInfo[1]) {
+			switch (parallSegName) {
 				case "h":
-					var moveSize = e.pageX - adorner.mouseDownX;
+					var moveSize = e.pageX - adorner.prevMouseX;
 					var cLeft = parseInt(adorner.currentUnit.style.left);
 					adorner.currentUnit.style.left  = (cLeft + moveSize) + "px";
 					break;
 				case "v":
-					var moveSize = e.pageY - adorner.mouseDownY;
+					var moveSize = e.pageY - adorner.prevMouseY;
 					var cTop = parseInt(adorner.currentUnit.style.top);
 					adorner.currentUnit.style.top  = (cTop + moveSize) + "px";
 					break;
@@ -760,30 +938,30 @@ var adorner = {
 					var rLimit = 0;
 					var limit = 99999;
 					
-					if (unitInfo[1] == "p1") {
+					if (parallSegName == "p1") {
 						lLimit = -limit;
 						rLimit = limit;
 						tLimit = -limit;
 						bLimit = h;
-					} else if (unitInfo[1] == "p2") {
+					} else if (parallSegName == "p2") {
 						lLimit = 0;
 						rLimit = limit;
 						tLimit = -limit;
 						bLimit = limit;
-					} else if (unitInfo[1] == "p3") {
+					} else if (parallSegName == "p3") {
 						lLimit = -limit;
 						rLimit = limit;
 						tLimit = 0;
 						bLimit = limit;
-					} else if (unitInfo[1] == "p4") {
+					} else if (parallSegName == "p4") {
 						lLimit = -limit;
 						rLimit = w;
 						tLimit = -limit;
 						bLimit = limit;
 					} 
 				
-					var moveX = e.pageX - adorner.mouseDownX;
-					var moveY = e.pageY - adorner.mouseDownY;
+					var moveX = e.pageX - adorner.prevMouseX;
+					var moveY = e.pageY - adorner.prevMouseY;
 					var cLeft = parseInt(adorner.currentUnit.style.left);
 					var cTop = parseInt(adorner.currentUnit.style.top);
 					var nLeft = cLeft + moveX;
@@ -797,31 +975,31 @@ var adorner = {
 					adorner.currentUnit.style.left  = nLeft + "px";
 					adorner.currentUnit.style.top  = nTop + "px";
 					break;
-				//cp_cube
-				case "l1":
+				//cp_cube //cp_linee
+				case "l1": 
 				case "l2":
 				case "r1":
 				case "r2":
 				case "m1":
 				case "m2":
 				case "m3":
+				//triangle
+				case "t1":
+				case "t2":
+				case "t3":
 					var x = itemProperty.basic.x;
 					var y = itemProperty.basic.y;
 					var w = itemProperty.basic.w;
 					var h = itemProperty.basic.h;
-				
-					
-					var moveX = e.pageX - adorner.mouseDownX;
-					var moveY = e.pageY - adorner.mouseDownY;
+					var moveX = e.pageX - adorner.prevMouseX;
+					var moveY = e.pageY - adorner.prevMouseY;
 					var cLeft = parseInt(adorner.currentUnit.style.left);
 					var cTop = parseInt(adorner.currentUnit.style.top);
 					var nLeft = cLeft + moveX;
 					var nTop = cTop + moveY;
-					
 					adorner.currentUnit.style.left  = nLeft + "px";
 					adorner.currentUnit.style.top  = nTop + "px";
 					break;
-
 			}
 		}
 	},
@@ -831,8 +1009,11 @@ var adorner = {
 		var unitInfo = adorner.currentUnitInfo;
 		var itemKey = unit.parentNode.getAttribute("target");
 		var itemProperty = dMap[itemKey];
+		var itemType = itemProperty.basic.t;
+		var parallType = unitInfo[0];
+		var parallSegName = unitInfo[1];
 		
-		if (unitInfo[1] == 1) {
+		if (parallSegName == 1) {
 			switch (itemProperty.point.d) {
 				case "hl":
 				case "hr":
@@ -849,7 +1030,7 @@ var adorner = {
 			}
 		} else {
 			//cp_parall2
-			switch (unitInfo[1]) {
+			switch (parallSegName) {
 				case "h":
 					var unitLeft = parseInt(adorner.currentUnit.style.left);
 					var w = itemProperty.basic.w;
@@ -874,7 +1055,7 @@ var adorner = {
 					var bx = itemProperty.point.p3.x;
 					var ry = itemProperty.point.p2.y;
 					var ly = itemProperty.point.p4.y;
-					if (unitInfo[1] == "p1") {
+					if (parallSegName == "p1") {
 						var ryPX = (h * ry / 100);
 						var lyPX = (h * ly / 100);
 						var ny = y + unitTop;
@@ -891,7 +1072,7 @@ var adorner = {
 						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : np1x, y : 0 });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly });
-					} else if (unitInfo[1] == "p3") {
+					} else if (parallSegName == "p3") {
 						var ryPX = (h * ry / 100);
 						var lyPX = (h * ly / 100);
 						var nh = unitTop;
@@ -904,7 +1085,7 @@ var adorner = {
 						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : np3x, y : 100 });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly });
-					} else if (unitInfo[1] == "p2") {
+					} else if (parallSegName == "p2") {
 						var txPX = (w * tx / 100);
 						var bxPX = (w * bx / 100);
 						var nw = unitLeft;
@@ -917,7 +1098,7 @@ var adorner = {
 						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : np2y });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : ntx, y : 0 });
 						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : nbx, y : 100 });
-					} else if (unitInfo[1] == "p4") {
+					} else if (parallSegName == "p4") {
 						var txPX = (w * tx / 100);
 						var bxPX = (w * bx / 100);
 						var nx = x + unitLeft;
@@ -936,7 +1117,7 @@ var adorner = {
 					adorner.removeAdorner(itemKey);
 					adorner.showAdorner(e, itemKey);
 					break;
-				//cp_cube
+				//cp_cube, //cp_triangle // cp_line
 				case "l1":
 				case "l2":
 				case "r1":
@@ -944,6 +1125,9 @@ var adorner = {
 				case "m1":
 				case "m2":
 				case "m3":
+				case "t1":
+				case "t2":
+				case "t3":
 					var unitLeft = parseInt(adorner.currentUnit.style.left);
 					var unitTop = parseInt(adorner.currentUnit.style.top);
 					var x = itemProperty.basic.x;
@@ -952,21 +1136,20 @@ var adorner = {
 					var h = itemProperty.basic.h;
 					var npx = unitLeft / w * 100;
 					var npy = unitTop / h * 100;
-					
-					if (unitInfo[1] == "m2") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "m2", { x : npx , y : npy });
-					} if (unitInfo[1] == "m3") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "m3", { x : npx, y : npy });
-					} else if (unitInfo[1] == "m1") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "m1", { x : npx, y : npy });
-					} else if (unitInfo[1] == "l1") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "l1", { x : npx, y : npy });
-					} else if (unitInfo[1] == "l2") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "l2", { x : npx, y : npy });
-					} else if (unitInfo[1] == "r1") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "r1", { x : npx, y : npy });
-					} else if (unitInfo[1] == "r2") {
-						itemManager.setProperty(itemKey, itemProperty, "point", "r2", { x : npx, y : npy });
+					itemManager.setProperty(itemKey, itemProperty, "point", parallSegName, { x : npx, y : npy });
+					switch (itemType){
+						case et.CP_LINE:
+							var l1 = itemProperty.point.l1;
+							var l2 = itemProperty.point.l2;
+							var newLeft = Math.min(l1.x / 100 * w, l2.x  / 100 * w);
+							var newTop = Math.min(l1.y / 100 * h, l2.y / 100 * h);
+							var newWidth = Math.abs((l1.x - l2.x) / 100 * w);
+							var newHeight = Math.abs((l1.y - l2.y) / 100 * h);
+							itemManager.setProperty(itemKey, itemProperty, "basic", "x", newLeft);
+							itemManager.setProperty(itemKey, itemProperty, "basic", "y", newTop);
+							itemManager.setProperty(itemKey, itemProperty, "basic", "w", newWidth);
+							itemManager.setProperty(itemKey, itemProperty, "basic", "h", newHeight);
+							break;
 					}
 					
 					adorner.removeAdorner(itemKey);
@@ -1002,35 +1185,50 @@ var adorner = {
 	},
 	
 	showAdorner : function(e, itemKey) {
-		var itemProperty = dMap[itemKey];
-		var itemType = itemProperty.basic.t;
-		var itemAdorner = undefined;
-		var itemController = cMap[itemType];
-		
-		switch(itemType) {
-			case et.CP_RECT:
-			default:
-				itemAdorner = adorner.makeDefaultAdorner(itemProperty);
-				break;
-			case et.CP_PARALL:
-				itemAdorner = adorner.makeParallAdorner(itemProperty);
-				break;
-			case et.CP_PARALL2:
-				itemAdorner = adorner.makeParall2Adorner(itemProperty);
-				break;
-			case et.CP_PARALL4:
-				itemAdorner = adorner.makeParall4Adorner(itemProperty);
-				break;
-			case et.CP_CUBE:
-				itemAdorner = adorner.makeCubeAdorner(itemProperty);
-				break;
+		var itemKeyList = undefined;
+		if (itemKey instanceof Array) {
+			itemKeyList = itemKey;
+		} else {
+			itemKeyList = [itemKey];
 		}
 		
-		var pagePos = adorner.canvasPositionToPagePosition(itemProperty.basic.x, itemProperty.basic.y);
-		itemAdorner.style.left = pagePos[0] + "px";
-		itemAdorner.style.top = pagePos[1] + "px";
-		itemAdorner.style.width = itemProperty.basic.w + "px";
-		itemAdorner.style.height = itemProperty.basic.h + "px";
+		for (var i = 0; i < itemKeyList.length; i++) {
+			var iKey = itemKeyList[i];
+			var itemProperty = dMap[iKey];
+			var itemType = itemProperty.basic.t;
+			var itemAdorner = undefined;
+			var itemController = cMap[itemType];
+			switch(itemType) {
+				case et.CP_RECT:
+				default:
+					itemAdorner = adorner.makeDefaultAdorner(itemProperty);
+					break;
+				case et.CP_PARALL:
+					itemAdorner = adorner.makeParallAdorner(itemProperty);
+					break;
+				case et.CP_PARALL2:
+					itemAdorner = adorner.makeParall2Adorner(itemProperty);
+					break;
+				case et.CP_PARALL4:
+					itemAdorner = adorner.makeParall4Adorner(itemProperty);
+					break;
+				case et.CP_CUBE:
+					itemAdorner = adorner.makeCubeAdorner(itemProperty);
+					break;
+				case et.CP_TRIANGLE:
+					itemAdorner = adorner.makeTriangleAdorner(itemProperty);
+					break;
+				case et.CP_LINE:
+					itemAdorner = adorner.makeLineAdorner(itemProperty);
+					break;
+			}
+			
+			var pagePos = adorner.canvasPositionToPagePosition(itemProperty.basic.x, itemProperty.basic.y);
+			itemAdorner.style.left = pagePos[0] + "px";
+			itemAdorner.style.top = pagePos[1] + "px";
+			itemAdorner.style.width = itemProperty.basic.w + "px";
+			itemAdorner.style.height = itemProperty.basic.h + "px";
+		}
 	},
 	
 	removeAdorner : function(itemKey) {
@@ -1042,9 +1240,14 @@ var adorner = {
 	
 	removeAdornerAll : function() {
 		var layer = et.adornerLayer;
-		while (layer.firstChild) {
-			layer.removeChild(layer.firstChild);
+		var adornerList = layer.querySelectorAll("[name=adorner]");
+		
+		if (adornerList != undefined) {
+			for (var i = 0; i < adornerList.length; i++) {
+				layer.removeChild(adornerList[i]);
+			}
 		}
+		
 	},
 	
 	adornerUnitVisible : function(adornerList, visible) {
@@ -1058,6 +1261,39 @@ var adorner = {
 };
 
 var hitChecker = {
+	
+	checkArea : function(e) {
+		
+		var areaLeft = parseInt(adorner.areaSelector.style.left);
+		var areaTop = parseInt (adorner.areaSelector.style.top);
+		var areaWidth = parseInt(adorner.areaSelector.style.width);
+		var areaHeight = parseInt(adorner.areaSelector.style.height);
+		var areaPosOnCanvas = adorner.mousePositionToCanvasPosition(areaLeft, areaTop);
+		
+		areaLeft = areaPosOnCanvas[0];
+		areaTop = areaPosOnCanvas[1];
+		
+		var dKeys = Object.keys(dMap);
+		var dKeysCnt = dKeys.length;
+		
+		var hittedList = [];
+		
+		for (var i = 0; i < dKeysCnt; i++) {
+			var itemKey = dKeys[i];
+			var itemProperty = dMap[itemKey];
+			var itemX = itemProperty.basic.x;
+			var itemY = itemProperty.basic.y;
+			var itemW = itemProperty.basic.w;
+			var itemH = itemProperty.basic.h;
+			var itemZ = itemProperty.basic.z;
+			if (areaLeft <= itemX && itemX + itemW <= areaLeft + areaWidth 
+				&& areaTop <= itemY && itemY + itemH <= areaTop + areaHeight) {
+				hittedList.push(itemKey);
+			}
+		}
+		
+		return hittedList;
+	},
 	
 	check : function(e) {
 		var mouseX = e.pageX; //스크롤 포함 위치
@@ -1094,7 +1330,7 @@ var hitChecker = {
 
 var drawer = {
 	
-	unitSize : 1,
+	unitSize : 4,
 	
 	__checkOverlap : function(p1, p2x, p2y) {
 		var p1b = p1.basic;
@@ -1466,6 +1702,148 @@ var cp_rect = {
 	},
 };
 
+var cp_line = {
+	
+	property : {
+		"basic" : { 
+			"t" : et.CP_LINE,
+			"n" : "triangle",
+			"w" : 100,
+			"h" : 100,
+			"x" : 100,
+			"y" : 100,
+			"a" : 0,
+			"z" : 0,
+			"key" : undefined,
+		},
+		"point" : {
+			"l1" : {x : 0, y : 0},
+			"l2" : {x : 100, y : 100},
+		},
+		"background" : {
+			"r" : 100,
+			"g" : 100,
+			"b" : 100,
+			"a" : 1,
+		},
+	},
+	
+	setProperty : function(property, att1, att2, value) {
+		try {
+			property[att1][att2] = value;
+		} catch (ex){
+			console.err(ex);
+		}
+	},
+	
+	make : function() {
+		return JSON.parse(JSON.stringify(cp_line.property));
+	},
+	
+	clearDraw : function(ctx, property) {
+		cp_parall.clearDraw(ctx, property);
+	},
+	
+	draw2PointLine : function(ctx, property, co_t1, co_t2) {
+		
+		var uSize = drawer.unitSize;
+		var lp, rp;
+		if (co_t1.x < co_t2.x) {
+			lp = co_t1;
+			rp = co_t2;
+		} else {
+			lp = co_t2;
+			rp = co_t1;
+		}
+		
+		var w = property["basic"]["w"];
+		var h = property["basic"]["h"];
+		var x = property["basic"]["x"];
+		var y = property["basic"]["y"];
+		
+		if (w >= h) {
+			var lInc = -(rp.y - lp.y) / (rp.x - lp.x);
+			for (var c = lp.x; c < rp.x; c++) {
+				var dx = lp.x + (c) * uSize;
+				var dy = lp.y - (c - lp.x) * lInc * uSize;
+				var dw = uSize;
+				
+				if (w < (c + 1) * uSize) {
+					dw = (c + 1) * uSize - w;
+					continue;
+				}
+				var dh = uSize;
+				if (h < dy + uSize) {
+					dh = (dy + uSize) - h;
+					continue;
+				}
+				ctx.fillRect(x + dx, y + dy, dw, dh);
+			}
+		} else {
+			var lInc = -(rp.y - lp.y) / (rp.x - lp.x - 1);
+			if (lp.y <= rp.y) {
+				for (var r = lp.y; r < rp.y; r++) {
+					var dx = lp.x - r * 1 / lInc * uSize;
+					var dy = lp.y + r * uSize;
+					var dw = uSize;
+					if (w < dx + uSize) {
+						dw = dx + uSize - w;
+						continue;
+					}
+					var dh = uSize;
+					if (h < dy + uSize) {
+						dh = dy + uSize - h;
+						continue;
+					}
+					ctx.fillRect(x + dx, y + dy, dw, dh);
+				}					
+			} else if (lp.y > rp.y) {
+				for (var r = rp.y; r < lp.y; r++){
+					var dx = rp.x + r * lInc * uSize;
+					var dy = rp.y + r * uSize;
+					var dw = uSize;
+					var dh = uSize; 
+					if (dx < 0) continue;
+					if (dy < 0) continue;
+					ctx.fillRect(x + dx, y + dy, dw, dh);
+				}
+			}
+		}
+	},
+	
+	draw : function(ctx, property) {
+		var color = "rgba(" 
+			+ property["background"]["r"] + ","
+			+ property["background"]["g"] + ","
+			+ property["background"]["b"] + ","
+			+ property["background"]["a"] + 
+			")";
+			
+		ctx.fillStyle = color;
+		var uSize = drawer.unitSize;
+		var w = property["basic"]["w"];
+		var h = property["basic"]["h"];
+		var x = property["basic"]["x"];
+		var y = property["basic"]["y"];
+		
+		var co_t1x = (w * property["point"]["l1"]["x"] / 100) / uSize;
+		var co_t1y = (h * property["point"]["l1"]["y"] / 100) / uSize;
+		var co_t2x = (w * property["point"]["l2"]["x"] / 100) / uSize;
+		var co_t2y = (h * property["point"]["l2"]["y"] / 100) / uSize;
+	
+		var co_r = Math.max(co_t1x, co_t2x);
+		var co_l = Math.max(co_t1x, co_t2x);
+		var co_t = Math.max(co_t1y, co_t2y);
+		var co_b = Math.max(co_t1y, co_t2y);
+		
+		var co_t1 = { x : co_t1x, y : co_t1y };
+		var co_t2 = { x : co_t2x, y : co_t2y };
+	
+		cp_line.draw2PointLine(ctx, property, co_t1, co_t2);
+	},
+	
+};
+
 var cp_triangle = {
 	
 	property : {
@@ -1481,8 +1859,8 @@ var cp_triangle = {
 			"key" : undefined,
 		},
 		"point" : {
-			"t1" : {x : 0, y : 0},
-			"t2" : {x : 50, y : 80},
+			"t1" : {x : 50, y : 0},
+			"t2" : {x : 0, y : 100},
 			"t3" : {x : 100, y : 100},
 		},
 		"background" : {
@@ -1550,10 +1928,10 @@ var cp_triangle = {
 					var td = undefined;
 					var bd = undefined;
 					if (c < co_t2.x) {
-						td = co_t1.y - c * tInc;
-						bd = co_t1.y - c * b1Inc;
+						td = co_t1.y - (c - co_t1.x) * tInc;
+						bd = co_t1.y - (c - co_t1.x) * b1Inc;
 					} else if (c >= co_t2.x) {
-						td = co_t1.y - c * tInc;
+						td = co_t1.y - (c - co_t1.x) * tInc;
 						bd = co_t2.y - (c - co_t2.x) * b2Inc;
 					}
 					var dw = uSize;
@@ -1572,11 +1950,11 @@ var cp_triangle = {
 					var td = undefined;
 					var bd = undefined;
 					if (c < co_t1.x) {
-						td = co_t2.y - c * t1Inc;
-						bd = co_t2.y - c * bInc;
+						td = co_t2.y - (c - co_t2.x) * t1Inc;
+						bd = co_t2.y - (c - co_t2.x) * bInc;
 					} else if (c >= co_t1.x) {
 						td = co_t1.y - (c - co_t1.x) * t2Inc;
-						bd = co_t2.y - c * bInc;
+						bd = co_t2.y - (c - co_t2.x) * bInc;
 					}
 					var dw = uSize;
 					if (w < (c + 1) * uSize) {
@@ -1650,21 +2028,21 @@ var cp_cube = {
 		},
 	
 		"background_1" : {
-			"r" : 255,
+			"r" : 102,
 			"g" : 100,
 			"b" : 100,
 			"a" : 0.2,
 		},
 		"background_2" : {
-			"r" : 100,
-			"g" : 255,
+			"r" : 73,
+			"g" : 68,
 			"b" : 100,
-			"a" : 0.2,
+			"a" : 0.46,
 		},
 		"background_3" : {
-			"r" : 100,
-			"g" : 100,
-			"b" : 255,
+			"r" : 175,
+			"g" : 164,
+			"b" : 181,
 			"a" : 0.2,
 		},
 		"border" : {
