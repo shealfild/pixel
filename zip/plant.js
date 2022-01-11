@@ -164,7 +164,6 @@ function plant() {
 		this.drawTree_leaf(ctx, sx, sy, w, colorLeafMain, 60);
 		this.drawTree_leaf(ctx, sx, sy, w, colorLeafSub, 50);
 		this.drawTree_leaf(ctx, sx, sy, w, "red", 2, 8);
-		this.drawTree_leafBoundary(ctx, sx, sy, w, "blue", 90, 1.5);
 	};
 	
 	this.drawTree_trunk = function(ctx, sx, sy, w, tw, th) {
