@@ -29,6 +29,8 @@ var et = {
 	CP_CUBE : "CP_CUBE",
 	CP_TRIANGLE : "CP_TRIANGLE",
 	CP_LINE : "CP_LINE",
+	CP_GROUP : "CP_GROUP",
+	CP_TREE : " CP_TREE",
 	
 	getComponentList : function() {
 		return { 
@@ -39,6 +41,8 @@ var et = {
 			"cube" : et.CP_CUBE,
 			"triangle" : et.CP_TRIANGLE,
 			"line" : et.CP_LINE,
+			"tree" : et.CP_TREE,
+			//"group" : et.CP_GROUP,
 		};
 	},
 	
@@ -73,9 +77,70 @@ var et = {
 		cMap[et.CP_CUBE] = cp_cube;
 		cMap[et.CP_TRIANGLE] = cp_triangle;
 		cMap[et.CP_LINE] = cp_line;
-		
+		cMap[et.CP_GROUP] = cp_group;
+		cMap[et.CP_TREE] = cp_tree;
 		et.changeCanvasSize();
+	},
 	
+	initEvent : function() {
+		
+		var copyMap = {};
+		
+		document.addEventListener("keydown", function(e) {
+			var ctrl = e.ctrlKey;
+			var shift = e.shiftKey;
+			switch (e.which) {
+				case 67: //c
+					break;
+				case 86: //v
+					break;
+				case 46: //del
+					break;
+				case 83: //s
+					if (ctrl) e.preventDefault();
+					break;
+				case 76: //l
+					if (ctrl) e.preventDefault();
+					break;
+				case 90: //z undo
+					if (ctrl) workManager.undo();
+					break;
+				case 89: //y redo
+					if (ctrl) workManager.redo();
+					break;
+			}
+		});
+		
+		document.addEventListener("keyup", function(e) {
+			var ctrl = e.ctrlKey;
+			var shift = e.shiftKey;
+			console.log("document : " + e.which + " ctrl : " + ctrl + " shift : " + shift);
+			switch (e.which) {
+				case 67: //c
+					if (ctrl) {
+						itemManager.copyItem();
+					}
+					break;
+				case 86: //v
+					if (ctrl) {
+						itemManager.pasteItem();
+					}
+					break;
+				case 46: //del
+					itemManager.deleteItem();
+					break;
+				case 83: //s
+					if (ctrl) {
+						fileManager.save();
+					}
+					break;
+				case 76 : //l
+					if (ctrl) {
+						fileManager.load();
+					}
+					break;
+			}
+		});
 	},
 	
 	makeTool : function() {
@@ -107,8 +172,31 @@ var et = {
 		applyBtn.appendChild(textNode);
 		toolNode.appendChild(applyBtn);
 		
+		//group
+		var groupBtn = document.createElement("a");
+		groupBtn.setAttribute("href", "#");
+		groupBtn.style = "margin:10px;"
+		groupBtn.appendChild(document.createTextNode("group"));
+		toolNode.appendChild(groupBtn);
+		//ungroup
+		var unGroupBtn = document.createElement("a");
+		unGroupBtn.setAttribute("href", "#");
+		unGroupBtn.style = "margin:10px;"
+		unGroupBtn.appendChild(document.createTextNode("ungroup"));
+		toolNode.appendChild(unGroupBtn);
+		
 		applyBtn.addEventListener("click", function() {
 			et.changeCanvasSize();
+		});
+		
+		groupBtn.addEventListener("click", function() {
+			var itemList = adorner.getSelectedItemList();
+			itemManager.makeGroupItem(itemList);
+		});
+		
+		unGroupBtn.addEventListener("click", function() {
+			var itemList = adorner.getSelectedItemList();
+			itemManager.releaseGroupItem(itemList);
 		});
 	},
 	
@@ -381,16 +469,16 @@ var adorner = {
 		var h = itemProperty.basic.h;
 		var point = itemProperty.point;
 		
-		var l1x = w * point.l1.x / 100;
-		var l1y = h * point.l1.y / 100;
-		var l2x = w * point.l2.x / 100;
-		var l2y = h * point.l2.y / 100;
+		var l1x = point.lpx1.x;
+		var l1y = point.lpx1.y;
+		var l2x = point.lpx2.x;
+		var l2y = point.lpx2.y;
 		
 		var mg = - adorner.ptSize / 2;
 		l1Div.style = pointStyle + adorner.__makePointStyle(l1x, l1y, mg, mg);
 		l2Div.style = pointStyle + adorner.__makePointStyle(l2x, l2y, mg, mg);
-		l1Div.setAttribute("unit", "line-l1");
-		l2Div.setAttribute("unit", "line-l2");
+		l1Div.setAttribute("unit", "line-lpx1");
+		l2Div.setAttribute("unit", "line-lpx2");
 		itemAdorner.appendChild(l1Div);
 		itemAdorner.appendChild(l2Div);
 		return itemAdorner;
@@ -626,7 +714,7 @@ var adorner = {
 		* mouse move
 		************************************************************************************/
 		et.adornerLayer.addEventListener("mousemove", function(e) {
-			console.log(et.CURRENT_MODE);
+			//console.log(et.CURRENT_MODE);
 			switch (et.CURRENT_MODE) {
 				case et.MODE_PARALL_MOVE_POINT:
 					adorner.moveAdornerParallPoint(e);
@@ -661,7 +749,7 @@ var adorner = {
 		et.adornerLayer.addEventListener("mouseup", function(e) {
 			switch (et.CURRENT_MODE) {
 				case et.MODE_MAKE: 
-					adorner.makeItem(e); 
+					itemManager.makeItem(e); 
 					break;
 				case et.MODE_PARALL_MOVE_POINT: 
 					adorner.moveItemToParallPoint(e); 
@@ -732,6 +820,9 @@ var adorner = {
 	},
 	
 	resizeAdornerAsMove : function(e, isBegin) {
+		
+		if (adorner.currentUnitInfo == undefined) return;
+		
 		var adornerArr = document.getElementsByName("adorner");
 		if (isBegin) {
 			adorner.adornerUnitVisible(adornerArr, false);
@@ -786,10 +877,10 @@ var adorner = {
 			var cLeft = parseInt(itemAdorner.style.left);
 			var cTop = parseInt(itemAdorner.style.top);
 			var pos = adorner.mousePositionToCanvasPosition(cLeft, cTop);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "w" , cWidth);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "h" , cHeight);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "x" , pos[0]);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "y" , pos[1]);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "w" , cWidth, k == 0 ? workManager.REC_FIRST : workManager.REC_LINKED);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "h" , cHeight, workManager.REC_LINKED);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "x" , pos[0], workManager.REC_LINKED);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "y" , pos[1], workManager.REC_LINKED);
 			drawer.drawItem(itemKey);
 		}
 		
@@ -825,8 +916,8 @@ var adorner = {
 			var cLeft = parseInt(itemAdorner.style.left);
 			var cTop = parseInt(itemAdorner.style.top);
 			var pos = adorner.mousePositionToCanvasPosition(cLeft, cTop);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "x" , pos[0]);
-			itemManager.setProperty(itemKey, itemProperty, "basic", "y" , pos[1]);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "x" , pos[0], k == 0 ? workManager.REC_FIRST : workManager.REC_LINKED);
+			itemManager.setProperty(itemKey, itemProperty, "basic", "y" , pos[1], workManager.REC_LINKED);
 			drawer.drawItem(itemKey);
 		}
 		adorner.adornerUnitVisible(adornerArr, true);
@@ -975,7 +1066,7 @@ var adorner = {
 					adorner.currentUnit.style.left  = nLeft + "px";
 					adorner.currentUnit.style.top  = nTop + "px";
 					break;
-				//cp_cube //cp_linee
+				//cp_cube
 				case "l1": 
 				case "l2":
 				case "r1":
@@ -987,6 +1078,9 @@ var adorner = {
 				case "t1":
 				case "t2":
 				case "t3":
+				//line
+				case "lpx1": 
+				case "lpx2":
 					var x = itemProperty.basic.x;
 					var y = itemProperty.basic.y;
 					var w = itemProperty.basic.w;
@@ -1012,6 +1106,7 @@ var adorner = {
 		var itemType = itemProperty.basic.t;
 		var parallType = unitInfo[0];
 		var parallSegName = unitInfo[1];
+		var itemAdorner = adorner.currentUnit.parentNode;
 		
 		if (parallSegName == 1) {
 			switch (itemProperty.point.d) {
@@ -1019,13 +1114,13 @@ var adorner = {
 				case "hr":
 					var unitTop = parseInt(adorner.currentUnit.style.top );
 					var h = itemProperty.basic.h;
-					itemManager.setProperty(itemKey, itemProperty, "point", "p", unitTop / h * 100);
+					itemManager.setProperty(itemKey, itemProperty, "point", "p", unitTop / h * 100, workManager.REC_FIRST);
 					break;
 				case "vb":
 				case "vt":
 					var unitLeft = parseInt(adorner.currentUnit.style.left);
 					var w = itemProperty.basic.w;
-					itemManager.setProperty(itemKey, itemProperty, "point", "p", unitLeft / w * 100);
+					itemManager.setProperty(itemKey, itemProperty, "point", "p", unitLeft / w * 100, workManager.REC_FIRST);
 					break;
 			}
 		} else {
@@ -1034,12 +1129,12 @@ var adorner = {
 				case "h":
 					var unitLeft = parseInt(adorner.currentUnit.style.left);
 					var w = itemProperty.basic.w;
-					itemManager.setProperty(itemKey, itemProperty, "point", "hp", unitLeft / w * 100);
+					itemManager.setProperty(itemKey, itemProperty, "point", "hp", unitLeft / w * 100, workManager.REC_FIRST);
 					break;
 				case "v":
 					var unitTop = parseInt(adorner.currentUnit.style.top);
 					var h = itemProperty.basic.h;
-					itemManager.setProperty(itemKey, itemProperty, "point", "vp", unitTop / h * 100);
+					itemManager.setProperty(itemKey, itemProperty, "point", "vp", unitTop / h * 100, workManager.REC_FIRST);
 					break;
 				case "p1":
 				case "p2":
@@ -1067,11 +1162,11 @@ var adorner = {
 						var nry = nryPX / nh * 100;
 						var nly = nlyPX / nh * 100;
 						var np1x = unitLeft / w * 100;
-						itemManager.setProperty(itemKey, itemProperty, "basic", "y", ny);
-						itemManager.setProperty(itemKey, itemProperty, "basic", "h", nh);
-						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : np1x, y : 0 });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly });
+						itemManager.setProperty(itemKey, itemProperty, "basic", "y", ny, workManager.REC_FIRST);
+						itemManager.setProperty(itemKey, itemProperty, "basic", "h", nh, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : np1x, y : 0 }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly }, workManager.REC_LINKED);
 					} else if (parallSegName == "p3") {
 						var ryPX = (h * ry / 100);
 						var lyPX = (h * ly / 100);
@@ -1081,10 +1176,10 @@ var adorner = {
 						var nry = nryPX / nh * 100;
 						var nly = nlyPX / nh * 100;
 						var np3x = unitLeft / w * 100;
-						itemManager.setProperty(itemKey, itemProperty, "basic", "h", nh);
-						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : np3x, y : 100 });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly });
+						itemManager.setProperty(itemKey, itemProperty, "basic", "h", nh, workManager.REC_FIRST);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : np3x, y : 100 }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : nry }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : nly }, workManager.REC_LINKED);
 					} else if (parallSegName == "p2") {
 						var txPX = (w * tx / 100);
 						var bxPX = (w * bx / 100);
@@ -1094,10 +1189,10 @@ var adorner = {
 						var ntx = ntxPX / nw * 100;
 						var nbx = nbxPX / nw * 100;
 						var np2y = unitTop / h * 100;
-						itemManager.setProperty(itemKey, itemProperty, "basic", "w", nw);
-						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : np2y });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : ntx, y : 0 });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : nbx, y : 100 });
+						itemManager.setProperty(itemKey, itemProperty, "basic", "w", nw, workManager.REC_FIRST);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p2", { x : 100, y : np2y }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : ntx, y : 0 }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : nbx, y : 100 }, workManager.REC_LINKED);
 					} else if (parallSegName == "p4") {
 						var txPX = (w * tx / 100);
 						var bxPX = (w * bx / 100);
@@ -1108,16 +1203,14 @@ var adorner = {
 						var ntx = ntxPX / nw * 100;
 						var nbx = nbxPX / nw * 100;
 						var np4y = unitTop / h * 100;
-						itemManager.setProperty(itemKey, itemProperty, "basic", "x", nx);
-						itemManager.setProperty(itemKey, itemProperty, "basic", "w", nw);
-						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : np4y });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : ntx, y : 0 });
-						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : nbx, y : 100 });
+						itemManager.setProperty(itemKey, itemProperty, "basic", "x", nx, workManager.REC_FIRST);
+						itemManager.setProperty(itemKey, itemProperty, "basic", "w", nw, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p4", { x : 0, y : np4y }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p1", { x : ntx, y : 0 }, workManager.REC_LINKED);
+						itemManager.setProperty(itemKey, itemProperty, "point", "p3", { x : nbx, y : 100 }, workManager.REC_LINKED);
 					}
-					adorner.removeAdorner(itemKey);
-					adorner.showAdorner(e, itemKey);
 					break;
-				//cp_cube, //cp_triangle // cp_line
+				//cp_cube
 				case "l1":
 				case "l2":
 				case "r1":
@@ -1125,6 +1218,7 @@ var adorner = {
 				case "m1":
 				case "m2":
 				case "m3":
+				//cp_triangle
 				case "t1":
 				case "t2":
 				case "t3":
@@ -1136,26 +1230,21 @@ var adorner = {
 					var h = itemProperty.basic.h;
 					var npx = unitLeft / w * 100;
 					var npy = unitTop / h * 100;
-					itemManager.setProperty(itemKey, itemProperty, "point", parallSegName, { x : npx, y : npy });
-					switch (itemType){
-						case et.CP_LINE:
-							var l1 = itemProperty.point.l1;
-							var l2 = itemProperty.point.l2;
-							var newLeft = Math.min(l1.x / 100 * w, l2.x  / 100 * w);
-							var newTop = Math.min(l1.y / 100 * h, l2.y / 100 * h);
-							var newWidth = Math.abs((l1.x - l2.x) / 100 * w);
-							var newHeight = Math.abs((l1.y - l2.y) / 100 * h);
-							itemManager.setProperty(itemKey, itemProperty, "basic", "x", newLeft);
-							itemManager.setProperty(itemKey, itemProperty, "basic", "y", newTop);
-							itemManager.setProperty(itemKey, itemProperty, "basic", "w", newWidth);
-							itemManager.setProperty(itemKey, itemProperty, "basic", "h", newHeight);
-							break;
-					}
-					
+					itemManager.setProperty(itemKey, itemProperty, "point", parallSegName, { x : npx, y : npy }, workManager.REC_FIRST);
 					adorner.removeAdorner(itemKey);
 					adorner.showAdorner(e, itemKey);
 					break;
+				 // cp_line
+				case "lpx1":
+				case "lpx2":
+					var unitLeft = parseInt(adorner.currentUnit.style.left);
+					var unitTop = parseInt(adorner.currentUnit.style.top);
+					itemManager.setProperty(itemKey, itemProperty, "point", parallSegName, { x : unitLeft, y : unitTop }, workManager.REC_FIRST);
+					break;
+					
 			}
+			adorner.removeAdorner(itemKey);
+			adorner.showAdorner(e, itemKey);
 		}
 		drawer.drawItem(itemKey);
 	},
@@ -1169,20 +1258,6 @@ var adorner = {
 		return undefined;
 	},
 	
-	makeItem : function(e) {
-		var makeController = cMap[et.MAKE_COMPONENT_TYPE];
-		var makeProperty = makeController.make();
-		var mouseX = e.pageX; //스크롤 포함 위치
-		var mouseY = e.pageY; //스크롤 포함 위치
-		var posOnCan = adorner.mousePositionToCanvasPosition(mouseX, mouseY);
-		var makeKey = et.MAKE_COMPONENT_TYPE + "_" + Date.now();
-		makeProperty["basic"]["key"] = makeKey;
-		makeProperty["basic"]["x"] = posOnCan[0];
-		makeProperty["basic"]["y"] = posOnCan[1];
-		makeProperty["basic"]["z"] = adorner.getTopZIndex();
-		dMap[makeKey] = makeProperty;
-		drawer.drawItem(makeKey);
-	},
 	
 	showAdorner : function(e, itemKey) {
 		var itemKeyList = undefined;
@@ -1257,6 +1332,18 @@ var adorner = {
 				childList[k].style.display = visible ? "block" : "none";
 			}
 		}
+	},
+	
+	getSelectedItemList : function() {
+		var layer = et.adornerLayer;
+		var adornerList = layer.querySelectorAll("[name=adorner]");
+		var itemList = [];
+		for (var i = 0; i < adornerList.length; i++) {
+			var itemAdorner = adornerList[i];
+			var itemKey = itemAdorner.getAttribute("target");
+			itemList.push(itemKey);
+		}
+		return itemList;
 	},
 };
 
@@ -1384,11 +1471,19 @@ var drawer = {
 		var keys = Object.keys(dMap);
 		var keyCnt = keys.length;
 		var newUpdateList = [];
-		
 		if (updateCnt == keyCnt) return;
 		
 		for (var i = 0; i < updateCnt; i++) {
-			var uProperty =  dMap[updateList[i]];
+			var updateKey = updateList[i];
+			var uProperty =  dMap[updateKey];
+			
+			if (uProperty.basic.t == et.CP_GROUP) {
+				for (var k = 0; k < uProperty.group.list.length; k++) {
+					if (updateList.indexOf(uProperty.group.list[k]) >= 0) continue;
+					newUpdateList.push(uProperty.group.list[k]);
+				}
+			}
+			
 			for (var k = 0; k < keyCnt; k++) {
 				if (updateList.indexOf(keys[k]) >= 0) continue;
 				var cProperty = dMap[keys[k]];
@@ -1412,14 +1507,54 @@ var drawer = {
 		}
 	},
 	
+	
+	clearAll : function() {
+		var updateList = Object.keys(dMap);
+		for (var i = 0; i < updateList.length; i++) {
+			var updateKey = updateList[i];
+			var updateProperty = dMap[updateKey];
+			var updateController = cMap[updateProperty.basic.t];
+			updateController.clearDraw(et.context.main, updateProperty);
+		}
+	},
+	
 	//updateList component keys
-	drawAll : function(updateList) {
+	drawAll : function() {
 		var updateList = Object.keys(dMap);
 		for (var i = 0; i < updateList.length; i++) {
 			var updateKey = updateList[i];
 			var updateProperty = dMap[updateKey];
 			var updateController = cMap[updateProperty.basic.t];
 			updateController.draw(et.context.main, updateProperty);
+		}
+	},
+	
+	clearItem : function(cKey) {
+		var updateList = [cKey];
+		drawer.defineUpdateList(updateList);
+		for (var i = 0; i < updateList.length; i++) {
+			var updateKey = updateList[i];
+			var updateProperty = dMap[updateKey];
+			var updateController = cMap[updateProperty.basic.t];
+			updateController.clearDraw(et.context.main, updateProperty);
+		}
+		
+		for (var i = 0; i < updateList.length; i++) {
+			var updateKey = updateList[i];
+			if (updateKey == cKey) continue;
+			var updateProperty = dMap[updateKey];
+			var updateController = cMap[updateProperty.basic.t];
+			updateController.draw(et.context.main, updateProperty);
+		}
+		
+		for (var i = 0; i < updateList.length; i++) {
+			var updateKey = updateList[i];
+			if (updateKey == cKey) continue;
+			var updateProperty = dMap[updateKey];
+			updateProperty["basic"]["p_x"] = undefined;
+			updateProperty["basic"]["p_y"] = undefined;
+			updateProperty["basic"]["p_w"] = undefined;
+			updateProperty["basic"]["p_h"] = undefined;
 		}
 	},
 	
@@ -1452,6 +1587,7 @@ var drawer = {
 		}
 	},
 	
+	
 	orderByZIndex : function(itemList) {
 		itemList.sort(drawer.__comparator_zIndex);
 	},
@@ -1462,14 +1598,211 @@ var drawer = {
 };
 
 var itemManager = {
-	setProperty : function(itemKey, itemProperty, att1, att2, value) {
+	
+	copyMap : {},
+	copyGroupedMap : {},
+	
+	copyItem : function() {
+		delete itemManager.copyMap;
+		itemManager.copyMap = {};
+		var itemList = adorner.getSelectedItemList();
+		itemManager.__copyItem(itemList);
+	},
+	
+	__copyItem : function(copyList, groupKey) {
+		for (var i = 0; i < copyList.length; i++) {
+			var itemKey = copyList[i];
+			var itemProperty = dMap[itemKey];
+			var clonedProperty = JSON.parse(JSON.stringify(itemProperty));
+			
+			if (groupKey == undefined) {
+				itemManager.copyMap[itemKey] = clonedProperty;
+			} else {
+				var groupedMap = itemManager.copyGroupedMap[groupKey];
+				if (groupedMap == undefined) {
+					groupedMap = {};
+				}
+				groupedMap[itemKey] = clonedProperty;
+				itemManager.copyGroupedMap[groupKey] = groupedMap;
+			}
+			
+			if (itemProperty.basic.t == et.CP_GROUP) {
+				var groupedList = itemProperty.group.list;
+				itemManager.__copyItem(groupedList, itemKey);
+			}
+		}
+	},
+	
+	pasteItem : function() {
+		var copyList = Object.keys(itemManager.copyMap);
+		itemManager.__pasteItem(copyList, undefined);
+	},
+	
+	__pasteItem : function(copyList, preGroupKey, newGroupKey) {
+		
+		for (var i = 0; i < copyList.length; i++) {
+			var itemKey = copyList[i];
+			var clonedProperty = preGroupKey == undefined ? itemManager.copyMap[itemKey] : itemManager.copyGroupedMap[preGroupKey][itemKey];
+			var clonedType = clonedProperty.basic.t;
+			var newKey = itemManager.genItemKey(clonedType);
+			var newZIndex = adorner.getTopZIndex();
+			clonedProperty.basic.key = newKey;
+			clonedProperty.basic.z = newZIndex;
+			clonedProperty.basic.x += 50;
+			clonedProperty.basic.y += 50;
+			if (newGroupKey != undefined) {
+				clonedProperty.group = { o : newKey };
+			}
+			
+			itemManager.__makeItem(newKey, clonedProperty, i == 0 ? workManager.REC_FIRST : workManager.REC_LINKED);
+			
+			if (newGroupKey != undefined) {
+				var currGroupList = dMap[newGroupKey].group.list;
+				currGroupList = JSON.parse(JSON.stringify(currGroupList));
+				currGroupList.push(newKey);
+				itemManager.setProperty(newGroupKey, dMap[newGroupKey], "group", "list", currGroupList, workManager.REC_LINKED);
+			}
+			
+			if (clonedType == et.CP_GROUP) {
+				var groupedList = clonedProperty.group.list;
+				clonedProperty.group.list = [];
+				itemManager.__pasteItem(groupedList, itemKey, newKey);
+			}
+		}
+	},
+	
+	//일단 그룹된 아이템은 삭제 되지 않도록 함
+	deleteItem : function() {
+		var itemList = adorner.getSelectedItemList();
+		for (var i = 0; i < itemList.length; i++) {
+			var itemKey = itemList[i];
+			var itemProperty = dMap[itemKey];
+			var groupOwner= itemProperty.group != undefined ? itemProperty.group.o : undefined;
+			if (groupOwner != undefined) {
+				continue;
+			}
+			itemManager.__deleteItem(itemKey, 
+				i == 0 ? workManager.REC_FIRST : workManager.REC_LINKED);
+		}
+		adorner.removeAdornerAll();
+	},
+	
+	__deleteItem : function(itemKey, recType) {
+		
+		workManager.record(workManager.ACTION_DEL
+							, recType
+							, itemKey);
+		
+		drawer.clearItem(itemKey);
+		
+		delete dMap[itemKey];
+	},
+	
+	genItemKey : function(itemType) {
+		var dateKey = Date.now();
+		var genKey = itemType + "_" + dateKey;
+		while(dMap[genKey] != undefined) {
+			genKey = itemType + "_" + (++dateKey);
+		}
+		return genKey;
+	},
+	
+	makeItem : function(e) {
+		var makeController = cMap[et.MAKE_COMPONENT_TYPE];
+		var makeProperty = makeController.make();
+		var mouseX = e.pageX; //스크롤 포함 위치
+		var mouseY = e.pageY; //스크롤 포함 위치
+		var posOnCan = adorner.mousePositionToCanvasPosition(mouseX, mouseY);
+		var makeKey = itemManager.genItemKey(et.MAKE_COMPONENT_TYPE);
+		makeProperty["basic"]["key"] = makeKey;
+		makeProperty["basic"]["x"] = posOnCan[0];
+		makeProperty["basic"]["y"] = posOnCan[1];
+		makeProperty["basic"]["z"] = adorner.getTopZIndex();
+		
+		//record
+		itemManager.__makeItem(makeKey, makeProperty, workManager.REC_FIRST);
+	},
+	
+	__makeItem : function(makeKey, makeProperty, recType) {
+		
+		workManager.record(workManager.ACTION_MAKE
+						, recType
+						, makeKey, undefined, undefined, makeProperty);
+						
+		dMap[makeKey] = makeProperty;
+		drawer.drawItem(makeKey);
+	},
+	
+	releaseGroupItem : function(itemList) {
+		if (itemList.length != 1) return;
+		var groupKey = itemList[0];
+		var groupProperty = dMap[groupKey];
+		itemManager.__deleteItem(groupKey, workManager.REC_FIRST);
+		
+		for (var i = 0; i < groupProperty.group.list.length; i++) {
+			var groupedKey = groupProperty.group.list[i];
+			itemManager.setProperty(groupedKey, dMap[groupedKey], "group", "o", undefined, workManager.REC_LINKED);
+		}
+	},
+	
+	makeGroupItem : function(itemList) {
+		var makeController = cMap[et.CP_GROUP];
+		var makeProperty = makeController.make();
+		var left = 999999;
+		var top = 999999;
+		var right = 0;
+		var bottom = 0;
+		var topZIndex = adorner.getTopZIndex();
+		drawer.orderByZIndex(itemList);
+		var makeKey = itemManager.genItemKey(et.CP_GROUP);
+		
+		for (var i = 0; i < itemList.length; i++) {
+			var itemKey = itemList[i];
+			var itemProperty = dMap[itemKey];
+			var basicProperty = itemProperty.basic;
+			if (left > basicProperty.x) {
+				left = basicProperty.x;
+			}
+			if (top > basicProperty.y) {
+				top = basicProperty.y;
+			}
+			if (right < basicProperty.x + basicProperty.w) {
+				right = basicProperty.x + basicProperty.w;
+			}
+			if (bottom < basicProperty.y + basicProperty.h) {
+				bottom = basicProperty.y + basicProperty.h;
+			}
+			
+		}
+		
+		makeProperty["basic"]["key"] = makeKey;
+		makeProperty["basic"]["z"] = topZIndex;
+		makeProperty["group"]["list"] = itemList;
+		makeProperty["basic"]["x"] = left - 5;
+		makeProperty["basic"]["y"] = top - 5;
+		makeProperty["basic"]["w"] = right - left + 10;
+		makeProperty["basic"]["h"] = bottom - top + 10;
+		itemManager.__makeItem(makeKey, makeProperty, workManager.REC_FIRST);
+		
+		for (var i = 0; i < itemList.length; i++) {
+			var itemKey = itemList[i];
+			var itemProperty = dMap[itemKey];
+			itemManager.setProperty(itemKey, itemProperty, "basic", "z", topZIndex++, workManager.REC_LINKED);
+			itemManager.setProperty(itemKey, itemProperty, "group", "o", makeKey, workManager.REC_LINKED);
+		}
+	},
+	
+	setProperty : function(itemKey, itemProperty, att1, att2, value, recType) {
 		switch (att1) {
+			case "point":
 			case "basic":
 				switch (att2) {
 					case "x":
 					case "y":
 					case "w":
 					case "h":
+					case "lpx1":
+					case "lpx2":
 						//이전 위치, 크기값
 						if (itemProperty["basic"]["p_x"] == undefined) {
 							itemProperty["basic"]["p_x"] = itemProperty["basic"]["x"];
@@ -1481,6 +1814,10 @@ var itemManager = {
 				}
 				break;
 		}
+		
+		//undo redo stack
+		workManager.record(workManager.ACTION_PROP, recType, itemKey, att1, att2, value);
+		
 		var itemController = cMap[itemProperty.basic.t];
 		itemController.setProperty(itemProperty, att1, att2, value);
 	},
@@ -1522,7 +1859,7 @@ var propertyManager = {
 					attValue = numValue;
 				}
 				
-				itemManager.setProperty(itemKey, itemProperty, att1Name, att2Name, attValue);
+				itemManager.setProperty(itemKey, itemProperty, att1Name, att2Name, attValue, workManager.REC_FIRST);
 				drawer.drawItem(itemKey);
 			}
 		}, true);
@@ -1669,6 +2006,7 @@ var cp_rect = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -1702,12 +2040,122 @@ var cp_rect = {
 	},
 };
 
+var cp_group = {
+	
+	property : {
+		"basic" : { 
+			"t" : et.CP_GROUP,
+			"n" : "group",
+			"w" : 100,
+			"h" : 100,
+			"x" : 100,
+			"y" : 100,
+			"a" : 0,
+			"z" : 0,
+			"key" : undefined,
+		},
+		"group" : {
+			"list" : [],
+		},
+	},
+	
+	getAllGroupedKey : function(property, list) {
+		var groupedList = property["group"]["list"];
+		for (var i = 0; i < groupedList.length; i++) {
+			var groupedKey = groupedList[i];
+			if (list.indexOf(groupedKey) < 0) list.push(groupedKey);
+			if (dMap[groupedKey]["basic"]["t"] == et.CP_GROUP) {
+				cp_group.getAllGroupedKey(dMap[groupedKey], list);
+			}
+		}
+	},
+	
+	setProperty : function(property, att1, att2, value) {
+		try {
+			var preValue = property[att1][att2];
+			if (property[att1] == undefined) property[att1] = {};
+			property[att1][att2] = value;
+			
+			switch (att1) {
+				case "basic":
+					var groupedList = [];
+					cp_group.getAllGroupedKey(property, groupedList);
+					var groupCnt = groupedList.length;
+					var valueGap = value - preValue;
+					switch (att2) {
+						case "w":
+							var preWidth = preValue;
+							var width = value;
+							var x = property.basic.x;
+							for (var i = 0; i < groupCnt; i++) {
+								var memberKey = groupedList[i];
+								var memberProperty = dMap[memberKey];
+								var mmx = memberProperty.basic.x;
+								var mmw = memberProperty.basic.w;
+								var nmmx = x + (mmx - x) / preWidth * width;
+								var nmmw = mmw / preWidth * width;
+								memberProperty.basic.x = nmmx;
+								memberProperty.basic.w = nmmw;
+							}
+							break;
+						case "h":
+							var preHeight = preValue;
+							var height = value;
+							var y = property.basic.y;
+							for (var i = 0; i < groupCnt; i++) {
+								var memberKey = groupedList[i];
+								var memberProperty = dMap[memberKey];
+								var mmy = memberProperty.basic.y;
+								var mmh = memberProperty.basic.h;
+								var nmmy = y + (mmy - y) / preHeight * height;
+								var nmmh = mmh / preHeight * height;
+								memberProperty.basic.y = nmmy;
+								memberProperty.basic.h = nmmh;
+							}
+							break;
+						case "x":
+							for (var i = 0; i < groupCnt; i++) {
+								var memberKey = groupedList[i];
+								var memberProperty = dMap[memberKey];
+								memberProperty.basic.x += valueGap;
+							}
+							break;
+						case "y":
+							for (var i = 0; i < groupCnt; i++) {
+								var memberKey = groupedList[i];
+								var memberProperty = dMap[memberKey];
+								memberProperty.basic.y += valueGap;
+							}
+							break;
+					}
+					break;
+			}
+		}
+		catch (ex) {
+			console.error(ex);
+		}
+	},
+	
+	make : function() {
+		return JSON.parse(JSON.stringify(cp_group.property));
+	},
+	
+	clearDraw : function(ctx, property) {
+		cp_parall.clearDraw(ctx, property);
+	},
+	
+	draw : function(ctx, property) {
+		ctx.strokeStyle = "rgba(255,0,0,0.5)";
+		ctx.strokeRect(property.basic.x + 1, property.basic.y + 1, property.basic.w - 2, property.basic.h - 2);
+	},
+};
+
 var cp_line = {
 	
 	property : {
 		"basic" : { 
 			"t" : et.CP_LINE,
-			"n" : "triangle",
+			"n" : "line",
 			"w" : 100,
 			"h" : 100,
 			"x" : 100,
@@ -1717,8 +2165,11 @@ var cp_line = {
 			"key" : undefined,
 		},
 		"point" : {
-			"l1" : {x : 0, y : 0},
-			"l2" : {x : 100, y : 100},
+			"lpx1" : {x : 0, y : 0},
+			"lpx2" : {x : 100, y : 100},
+		},
+		"draw" : {
+			"s" : 4,
 		},
 		"background" : {
 			"r" : 100,
@@ -1726,11 +2177,70 @@ var cp_line = {
 			"b" : 100,
 			"a" : 1,
 		},
+
 	},
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
+			
+			switch (att1) {
+				case "point":
+					var x1 = property[att1]["lpx1"].x;
+					var y1 = property[att1]["lpx1"].y;
+					var x2 = property[att1]["lpx2"].x;
+					var y2 = property[att1]["lpx2"].y;
+					var p1 = undefined;
+					var p2 = undefined;
+
+					if (x1 <= x2) {
+						p1 = { x : x1 , y : y1 };
+						p2 = { x : x2 , y : y2 };
+					} else {
+						p2 = { x : x1 , y : y1 };
+						p1 = { x : x2 , y : y2 };
+					}
+					
+					var nx = property["basic"].x;
+					var ny = property["basic"].y;
+					var nw = undefined;
+					var nh = undefined;
+					var moveX = undefined;
+					var moveY = undefined;
+					
+					if (p1.x < p2.x) {
+						moveX = p1.x;
+						nw = p2.x - p1.x;
+					} else {
+						moveX = p2.x;
+						nw = p1.x - p2.x;
+					}
+					nx += moveX;
+					p1.x -= moveX;
+					p2.x -= moveX;
+					
+					if (p1.y < p2.y) {
+						moveY = p1.y;
+						nh = p2.y - p1.y;
+					} else {
+						moveY = p2.y;
+						nh = p1.y - p2.y;
+					}
+					
+					ny += moveY;
+					p1.y -= moveY;
+					p2.y -= moveY;
+					property["point"]["lpx1"] = p1;
+					property["point"]["lpx2"] = p2;
+					property["basic"]["x"] = nx;
+					property["basic"]["y"] = ny;
+					property["basic"]["w"] = nw;
+					property["basic"]["h"] = nh;
+					break;
+				case "basic":
+					break;
+			}
 		} catch (ex){
 			console.err(ex);
 		}
@@ -1741,12 +2251,26 @@ var cp_line = {
 	},
 	
 	clearDraw : function(ctx, property) {
-		cp_parall.clearDraw(ctx, property);
+		var ds = property["draw"]["s"];
+		var x = property["basic"]["x"];
+		var y = property["basic"]["y"];
+		var w = property["basic"]["w"];
+		var h = property["basic"]["h"];
+		ctx.clearRect(x - ds, y - ds, w + ds * 2, h + ds * 2);
+		
+		if (property["basic"]["p_x"] != undefined) {
+			var px = property["basic"]["p_x"];
+			var py = property["basic"]["p_y"];
+			var pw = property["basic"]["p_w"];
+			var ph = property["basic"]["p_h"];
+			ctx.clearRect(px - ds, py - ds, pw + ds * 2, ph + ds * 2);
+		}
 	},
 	
 	draw2PointLine : function(ctx, property, co_t1, co_t2) {
 		
-		var uSize = drawer.unitSize;
+		// var uSize = drawer.unitSize;
+		var uSize = property.draw.s;
 		var lp, rp;
 		if (co_t1.x < co_t2.x) {
 			lp = co_t1;
@@ -1760,58 +2284,24 @@ var cp_line = {
 		var h = property["basic"]["h"];
 		var x = property["basic"]["x"];
 		var y = property["basic"]["y"];
+		var lInc = -(rp.y - lp.y) / (rp.x - lp.x);
+		var inc = w < h ? (w / h) : 1;
 		
-		if (w >= h) {
-			var lInc = -(rp.y - lp.y) / (rp.x - lp.x);
-			for (var c = lp.x; c < rp.x; c++) {
-				var dx = lp.x + (c) * uSize;
-				var dy = lp.y - (c - lp.x) * lInc * uSize;
-				var dw = uSize;
-				
-				if (w < (c + 1) * uSize) {
-					dw = (c + 1) * uSize - w;
-					continue;
-				}
-				var dh = uSize;
-				if (h < dy + uSize) {
-					dh = (dy + uSize) - h;
-					continue;
-				}
-				ctx.fillRect(x + dx, y + dy, dw, dh);
-			}
+		if (inc == 0) {
+			ctx.fillRect(x, y, uSize, Math.abs(rp.y - lp.y) * uSize);
 		} else {
-			var lInc = -(rp.y - lp.y) / (rp.x - lp.x - 1);
-			if (lp.y <= rp.y) {
-				for (var r = lp.y; r < rp.y; r++) {
-					var dx = lp.x - r * 1 / lInc * uSize;
-					var dy = lp.y + r * uSize;
-					var dw = uSize;
-					if (w < dx + uSize) {
-						dw = dx + uSize - w;
-						continue;
-					}
-					var dh = uSize;
-					if (h < dy + uSize) {
-						dh = dy + uSize - h;
-						continue;
-					}
-					ctx.fillRect(x + dx, y + dy, dw, dh);
-				}					
-			} else if (lp.y > rp.y) {
-				for (var r = rp.y; r < lp.y; r++){
-					var dx = rp.x + r * lInc * uSize;
-					var dy = rp.y + r * uSize;
-					var dw = uSize;
-					var dh = uSize; 
-					if (dx < 0) continue;
-					if (dy < 0) continue;
-					ctx.fillRect(x + dx, y + dy, dw, dh);
-				}
+			for (var c = lp.x; c < rp.x; c += inc) {
+				var dx = lp.x * uSize + (c) * uSize;
+				var dy = lp.y * uSize - (c - lp.x) * lInc * uSize;
+				var dw = uSize;
+				var dh = uSize;
+				ctx.fillRect(x + dx, y + dy, dw, dh);
 			}
 		}
 	},
 	
 	draw : function(ctx, property) {
+		var uSize = property.draw.s;
 		var color = "rgba(" 
 			+ property["background"]["r"] + ","
 			+ property["background"]["g"] + ","
@@ -1820,28 +2310,33 @@ var cp_line = {
 			")";
 			
 		ctx.fillStyle = color;
-		var uSize = drawer.unitSize;
 		var w = property["basic"]["w"];
 		var h = property["basic"]["h"];
 		var x = property["basic"]["x"];
 		var y = property["basic"]["y"];
+		var point = property["point"];
 		
-		var co_t1x = (w * property["point"]["l1"]["x"] / 100) / uSize;
-		var co_t1y = (h * property["point"]["l1"]["y"] / 100) / uSize;
-		var co_t2x = (w * property["point"]["l2"]["x"] / 100) / uSize;
-		var co_t2y = (h * property["point"]["l2"]["y"] / 100) / uSize;
+		var co_t1x = (point["lpx1"]["x"]) / uSize;
+		var co_t1y = (point["lpx1"]["y"]) / uSize;
+		var co_t2x = (point["lpx2"]["x"]) / uSize;
+		var co_t2y = (point["lpx2"]["y"]) / uSize;
 	
 		var co_r = Math.max(co_t1x, co_t2x);
 		var co_l = Math.max(co_t1x, co_t2x);
 		var co_t = Math.max(co_t1y, co_t2y);
 		var co_b = Math.max(co_t1y, co_t2y);
+		var co_t1 = undefined; 
+		var co_t2 = undefined; 
 		
-		var co_t1 = { x : co_t1x, y : co_t1y };
-		var co_t2 = { x : co_t2x, y : co_t2y };
-	
+		if (co_t1x <= co_t2x) {
+			co_t1 = { x : co_t1x, y : co_t1y };
+			co_t2 = { x : co_t2x, y : co_t2y };
+		} else {
+			co_t2 = { x : co_t1x, y : co_t1y };
+			co_t1 = { x : co_t2x, y : co_t2y };
+		}
 		cp_line.draw2PointLine(ctx, property, co_t1, co_t2);
 	},
-	
 };
 
 var cp_triangle = {
@@ -1881,6 +2376,7 @@ var cp_triangle = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -2057,6 +2553,7 @@ var cp_cube = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -2189,6 +2686,7 @@ var cp_parall4 = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -2450,6 +2948,7 @@ var cp_parall2 = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -2552,6 +3051,7 @@ var cp_parall = {
 	
 	setProperty : function(property, att1, att2, value) {
 		try {
+			if (property[att1] == undefined) property[att1] = {};
 			property[att1][att2] = value;
 		} catch (ex){
 			console.err(ex);
@@ -2675,6 +3175,147 @@ var cp_parall = {
 			var dHeight = Math.min(maxHeight, dLimit - uLimit);
 			ctx.fillRect(dLeft, dTop, dWidth, dHeight);		
 		}
+	},
+};
+
+var cp_tree = {
+	property : {
+		"basic" : {
+			"t" : et.CP_TREE,
+			"n" : "tree",
+			"w" : 100,
+			"h" : 200,
+			"x" : 100,
+			"y" : 100,
+			"a" : 0,
+			"z" : 0,
+			"key" : undefined,
+		},
+		"background" : {
+			"r" : 0,
+			"g" : 0,
+			"b" : 255,
+			"a" : 1,
+		},
+		"border" : {
+			"w" : [1, 1, 1, 1],
+			"t" : "solid",
+			"r" : 0,
+			"g" : 255,
+			"b" : 0,
+			"a" : 1,
+		},
+		"draw" : {
+			"s" : 4,
+		},
+	},
+	
+	setProperty : function(property, att1, att2, value) {
+		try {
+			if (property[att1] == undefined) property[att1] = {};
+			property[att1][att2] = value;
+		} catch (ex){
+			console.err(ex);
+		}
+	},
+	
+	make : function() {
+		return JSON.parse(JSON.stringify(cp_tree.property));
+	},
+	
+	clearDraw : function(ctx, property) {
+		var x = property["basic"]["x"];
+		var y = property["basic"]["y"];
+		var w = property["basic"]["w"];
+		var h = property["basic"]["h"];
+		ctx.clearRect(x, y, w, h);
+		
+		if (property["basic"]["p_x"] != undefined) {
+			var px = property["basic"]["p_x"];
+			var py = property["basic"]["p_y"];
+			var pw = property["basic"]["p_w"];
+			var ph = property["basic"]["p_h"];
+			ctx.clearRect(px, py, pw, ph);
+		}
+	},
+	
+	draw : function(ctx, property) {
+		
+		var colorLeafMain = "green";
+		var colorLeafSub = "lightgreen";
+		var colorApple = "red";
+		
+		var sx = property.basic.x;
+		var sy = property.basic.y;
+		var w = property.basic.w;
+		var h = property.basic.h;
+		
+		sx += w / 2;
+		sy += w / 2;
+		
+		var tw = w / 5;
+		var th =  h - w;
+		
+		cp_tree.drawTree_trunk(ctx, sx, sy, w, tw, th);
+		cp_tree.drawTree_leaf(ctx, sx, sy, w, colorLeafMain, 60);
+		cp_tree.drawTree_leaf(ctx, sx, sy, w, colorLeafSub, 50);
+		cp_tree.drawTree_leaf(ctx, sx, sy, w, colorApple, 2, 8);
+	},
+	
+	
+	drawTree_trunk : function(ctx, sx, sy, w, tw, th) {
+		var _us = 4;
+		sx = sx - tw / 2;
+		sy = sy + w / 2;
+		ctx.beginPath();
+		ctx.fillStyle = "brown";
+		
+		var wCnt = tw / _us;
+		for (var i = 0; i < wCnt; i++) {
+			var rootRandom = Math.random() * _us;
+			var rootNegative = Math.random() * 10 > 5 ? true : false;
+			if (rootNegative) {
+				rootRandom *= -1;
+			}
+			
+			if (i == 0 && wCnt > 3) {
+				var rn = Math.random() * (th / 2);
+				ctx.rect(sx + _us * 0.5, sy + rn, _us / 2, th - rn + rootRandom);	
+			} else if (i == wCnt - 1 && wCnt > 3) {
+				var rn = Math.random() * (th / 2);
+				ctx.rect(sx + _us * i, sy + rn, _us / 2, th - rn + rootRandom);	
+			} else {
+				var rn = Math.random() * (th / 2);
+				ctx.rect(sx + _us * i, sy - rn, _us, th + rn + rootRandom);	
+			}
+		}
+		ctx.fill();
+	},
+	
+	drawTree_leaf : function(ctx, sx, sy, w, color, density, _size) {
+		
+		var _us = 4;
+		density = density == undefined ? 60 : density;
+		_size = _size == undefined ? _us : _size;
+		var wCnt = w / 4;
+		//반지름
+		var _rv = (wCnt / 2);
+		ctx.beginPath();
+		ctx.fillStyle = color;
+		for (var r = -_rv; r <= _rv; r++) {
+			var top = sy + r * _us;
+			for (var c = -_rv; c <= _rv; c++) {
+				//원형범위 안인 좌표만 그린다.
+				var _cv = Math.sqrt(Math.pow(r, 2) + Math.pow(c, 2));
+				if (_rv > _cv) {
+					var left = sx + c * _us;
+					if (Math.random() * 100 > (100 - density)) {
+						ctx.rect(left, top, _size, _size);
+					} 
+				} 
+			}
+		}
+		ctx.fill();
 	},
 };
 
@@ -2985,8 +3626,45 @@ var colorManager = {
 	},
 };
 
+
+var fileManager = {
+	
+	save : function() {
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(new Blob([JSON.stringify(dMap, null, 2)], { type: "text/plain" }));
+		a.setAttribute("download", "page_" + Date.now() + ".txt");
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+	},
+	
+	load : function() {
+		var input = document.createElement("input");
+		input.type = "file";
+		input.accept = "text/plain"; // 확장자가 xxx, yyy 일때, ".xxx, .yyy"
+		input.onchange = function (event) {
+			fileManager.processFile(event.target.files[0]);
+		};
+		input.click();
+	},
+	
+	processFile : function(file) {
+		var reader = new FileReader();
+		drawer.clearAll();
+		reader.onload = function () {
+			console.log(reader.result);
+			var loadedMap = JSON.parse(reader.result);
+			dMap = loadedMap;
+			drawer.drawAll();
+		};
+		reader.readAsText(file, /* optional */ "euc-kr");
+	}
+};
+
 et.makeTool();
 et.makeComponentTool();
 et.init();
+et.initEvent();
 propertyManager.init();
 adorner.initEvent();
+
